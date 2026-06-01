@@ -586,7 +586,10 @@ test('widget CSS keeps the popup compact, stable, and action-focused', () => {
   assert.match(css, /\.close-button\s*{[^}]*width:\s*36px;/s);
   assert.match(css, /\.bc-container-row\s*{[^}]*grid-template-columns:/s);
   assert.match(css, /\.actions\s*{[^}]*display:\s*flex;/s);
+  assert.match(css, /\.actions\s*{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /\.action-button\s*{[^}]*min-height:\s*32px;/s);
+  assert.match(css, /\.action-button\s*{[^}]*flex:\s*0 0 116px;/s);
+  assert.doesNotMatch(css, /\.action-button\.confirm\s*{[^}]*(?:min-)?width:/s);
   assert.match(css, /\.output-drawer\s*{[^}]*max-height:/s);
   assert.doesNotMatch(css, /border-radius:\s*(1[2-9]|[2-9][0-9])px/);
 });
