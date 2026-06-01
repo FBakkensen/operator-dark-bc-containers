@@ -51,6 +51,27 @@ test('popup renders header summary, refresh state, rows, and PRD actions from fi
   assert.equal(button(stoppedRow, 'open').disabled, true);
 });
 
+test('popup renders a backdrop that closes on outside click but not on card click', () => {
+  const dom = createDom();
+  const root = dom.window.document.querySelector('#app');
+  let closeCalls = 0;
+
+  renderBcContainers(root, loadWidgetFixture('mixed'), {
+    handlers: { close: () => { closeCalls += 1; } }
+  });
+
+  const backdrop = root.querySelector('.bc-backdrop');
+  const panel = root.querySelector('.bc-containers-panel');
+  assert.ok(backdrop, 'backdrop should wrap the panel');
+  assert.ok(panel, 'panel should render inside the backdrop');
+
+  panel.click();
+  assert.equal(closeCalls, 0, 'clicking the card must not close the popup');
+
+  backdrop.click();
+  assert.equal(closeCalls, 1, 'clicking the backdrop closes the popup');
+});
+
 test('popup renders latest output drawer and helper warning detail', () => {
   const outputDom = createDom();
   renderBcContainers(outputDom.window.document.querySelector('#app'), loadWidgetFixture('latest-output'));
@@ -559,8 +580,9 @@ test('widget CSS keeps the popup compact, stable, and action-focused', () => {
   const css = fs.readFileSync(widgetStylePath, 'utf8');
 
   assert.match(css, /html,\s*body,\s*#app\s*{[^}]*height:\s*100%;/s);
-  assert.match(css, /\.bc-containers-panel\s*{[^}]*height:\s*100%;/s);
-  assert.doesNotMatch(css, /\.bc-containers-panel\s*{[^}]*min-height:\s*100vh;/s);
+  assert.match(css, /\.bc-backdrop\s*{[^}]*place-items:\s*center;/s);
+  assert.match(css, /\.bc-containers-panel\s*{[^}]*max-height:\s*min\(/s);
+  assert.doesNotMatch(css, /\.bc-containers-panel\s*{[^}]*height:\s*100%;/s);
   assert.match(css, /\.close-button\s*{[^}]*width:\s*36px;/s);
   assert.match(css, /\.bc-container-row\s*{[^}]*grid-template-columns:/s);
   assert.match(css, /\.actions\s*{[^}]*display:\s*flex;/s);

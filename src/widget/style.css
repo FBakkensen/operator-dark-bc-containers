@@ -29,7 +29,7 @@ body,
 body {
   min-width: 0;
   overflow: hidden;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   font: 13px/1.4 "Segoe UI", Arial, sans-serif;
 }
@@ -38,15 +38,32 @@ button {
   font: inherit;
 }
 
+.bc-backdrop {
+  width: 100vw;
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 42px;
+  background:
+    linear-gradient(180deg, rgb(3 5 8 / 62%), rgb(6 7 10 / 72%)),
+    rgb(3 5 8 / 68%);
+}
+
 .bc-containers-panel {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  height: 100%;
+  width: min(880px, calc(100vw - 84px));
+  max-height: min(680px, calc(100vh - 84px));
   min-height: 0;
   overflow: hidden;
   padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: var(--bg);
+  box-shadow:
+    0 28px 90px rgb(0 0 0 / 52%),
+    inset 0 1px 0 rgb(255 255 255 / 4%);
 }
 
 .panel-header {

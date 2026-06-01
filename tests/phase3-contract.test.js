@@ -22,7 +22,7 @@ test('zebar pack defines the BC containers popup and narrow helper shell privile
   assert.equal(widget.shownInTaskbar, false);
   assert.equal(widget.focused, true);
   assert.equal(widget.resizable, false);
-  assert.equal(widget.transparent, false);
+  assert.equal(widget.transparent, true);
   assert.deepEqual(widget.includeFiles, [
     'index.html',
     'style.css',
@@ -36,10 +36,10 @@ test('zebar pack defines the BC containers popup and narrow helper shell privile
   const preset = widget.presets.find((candidate) => candidate.name === 'popup');
   assert.ok(preset, 'missing popup preset');
   assert.equal(preset.anchor, 'top_left');
-  assert.equal(preset.offsetX, '16px');
-  assert.equal(preset.offsetY, '48px');
-  assert.equal(preset.width, '980px');
-  assert.equal(preset.height, '640px');
+  assert.equal(preset.offsetX, '0px');
+  assert.equal(preset.offsetY, '0px');
+  assert.equal(preset.width, '100%');
+  assert.equal(preset.height, '100%');
   assert.deepEqual(preset.monitorSelection, { type: 'primary' });
   assert.equal(widget.caching.defaultDuration, 0);
 

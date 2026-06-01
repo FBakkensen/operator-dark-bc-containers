@@ -51,24 +51,30 @@
     const handlers = options.handlers ?? {};
     const containers = sortContainers(data.containers);
 
-    root.replaceChildren();
-    root.append(
-      element(document, 'section', {
-        className: 'bc-containers-panel',
-        role: 'dialog',
-        'aria-label': 'BC containers'
-      }, [
-        renderHeader(document, data, warning, handlers),
-        warning ? renderWarning(document, warning) : null,
-        activeAction ? renderActiveCommand(document, activeAction) : null,
-        renderContainerList(document, containers, {
-          activeAction,
-          armedAction,
-          handlers
-        }),
-        renderOutputDrawer(document, latestOutput)
-      ])
-    );
+    const panel = element(document, 'section', {
+      className: 'bc-containers-panel',
+      role: 'dialog',
+      'aria-label': 'BC containers'
+    }, [
+      renderHeader(document, data, warning, handlers),
+      warning ? renderWarning(document, warning) : null,
+      activeAction ? renderActiveCommand(document, activeAction) : null,
+      renderContainerList(document, containers, {
+        activeAction,
+        armedAction,
+        handlers
+      }),
+      renderOutputDrawer(document, latestOutput)
+    ]);
+
+    const backdrop = element(document, 'div', { className: 'bc-backdrop' }, [panel]);
+    backdrop.addEventListener('click', (event) => {
+      if (event.target === backdrop) {
+        handlers.close?.();
+      }
+    });
+
+    root.replaceChildren(backdrop);
   }
 
   async function initializeBcContainers(options = {}) {
