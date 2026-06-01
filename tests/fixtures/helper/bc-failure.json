@@ -1,0 +1,6 @@
+{
+  "operation": "Get-BcContainers",
+  "command": "Get-BcContainers",
+  "exitCode": 127,
+  "stderr": "Get-BcContainers: The term 'Get-BcContainers' is not recognized."
+}

@@ -1,0 +1,15 @@
+{
+  "name": "operator-dark-bc-containers",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Buildless Zebar BC container monitor and controller helper for Operator Dark.",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "jsdom": "^29.1.1"
+  }
+}

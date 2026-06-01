@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Operator Dark BC Containers</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <main id="app"></main>
+    <script src="fixture-data.browser.js"></script>
+    <script src="app.js"></script>
+    <script src="app.browser.js"></script>
+    <script>
+      window.addEventListener('DOMContentLoaded', function () {
+        if (!window.__OPERATOR_DARK_BC_CONTAINERS_BOOTSTRAPPED__) {
+          window.BcContainersWidget.bootstrapBcContainers();
+        }
+      });
+    </script>
+    <script type="module">
+      import * as zebar from "https://esm.sh/zebar@3.3.1";
+
+      if (window.__TAURI__ || window.__TAURI_INTERNALS__) {
+        window.__OPERATOR_DARK_BC_CONTAINERS_BOOTSTRAPPED__ = true;
+        window.OperatorDarkBcContainersZebar = zebar;
+        window.BcContainersWidget.bootstrapBcContainers({ zebar });
+      }
+    </script>
+  </body>
+</html>

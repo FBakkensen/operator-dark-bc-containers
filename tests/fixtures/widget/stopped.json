@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "refreshedAt": "2026-06-01T10:00:00+02:00",
+  "summary": {
+    "total": 1,
+    "running": 0,
+    "cpuPercent": 0,
+    "memoryBytes": 0
+  },
+  "containers": [
+    {
+      "name": "BC.Dev_26-A",
+      "state": "exited",
+      "health": "exited",
+      "status": "Exited (0) 2 hours ago",
+      "cpuPercent": null,
+      "memoryBytes": null,
+      "image": "bc-dev:sandbox",
+      "metadata": "BC 26 / us"
+    }
+  ],
+  "error": null
+}

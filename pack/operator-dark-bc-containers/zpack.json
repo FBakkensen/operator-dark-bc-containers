@@ -1,0 +1,59 @@
+{
+  "$schema": "https://github.com/glzr-io/zebar/raw/v3.3.1/resources/zpack-schema.json",
+  "name": "operator-dark-bc-containers",
+  "version": "0.1.0",
+  "description": "Operator Dark Business Central container monitor and controller popup.",
+  "tags": ["popup", "business-central", "bccontainerhelper", "operatordark"],
+  "previewImages": [],
+  "repositoryUrl": "",
+  "widgets": [
+    {
+      "name": "bc-containers",
+      "htmlPath": "./index.html",
+      "zOrder": "top_most",
+      "shownInTaskbar": false,
+      "focused": true,
+      "resizable": false,
+      "transparent": false,
+      "includeFiles": [
+        "index.html",
+        "style.css",
+        "fixture-data.browser.js",
+        "app.js",
+        "app.browser.js",
+        "scripts/bc-containers.ps1",
+        "scripts/run-bc-containers-helper.cmd"
+      ],
+      "caching": {
+        "defaultDuration": 0,
+        "rules": []
+      },
+      "privileges": {
+        "shellCommands": [
+          {
+            "program": "cmd.exe",
+            "argsRegex": "^/d /c (?:(?:.*operator-dark-bc-containers[\\\\/]scripts[\\\\/]run-bc-containers-helper\\.cmd)|(?:scripts[\\\\/]run-bc-containers-helper\\.cmd)) -Operation (?:refresh|action -Action (?:start|stop|restart|remove) -ContainerName [^&|<>^]+)$"
+          }
+        ]
+      },
+      "presets": [
+        {
+          "name": "popup",
+          "anchor": "top_left",
+          "offsetX": "16px",
+          "offsetY": "48px",
+          "width": "980px",
+          "height": "640px",
+          "monitorSelection": {
+            "type": "primary"
+          },
+          "dockToEdge": {
+            "enabled": false,
+            "edge": null,
+            "windowMargin": "0px"
+          }
+        }
+      ]
+    }
+  ]
+}

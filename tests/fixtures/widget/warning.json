@@ -1,0 +1,48 @@
+{
+  "ok": false,
+  "refreshedAt": "2026-06-01T10:00:05+02:00",
+  "summary": {
+    "total": 3,
+    "running": 2,
+    "cpuPercent": 18.4,
+    "memoryBytes": 3662671872
+  },
+  "containers": [
+    {
+      "name": "234-rules-within-rules",
+      "state": "running",
+      "health": "healthy",
+      "status": "Up 7 hours (healthy)",
+      "cpuPercent": 9.8,
+      "memoryBytes": 3125800960,
+      "image": "bctest:snapshot",
+      "metadata": "BC 26 / dk"
+    },
+    {
+      "name": "BC.Dev_26-A",
+      "state": "exited",
+      "health": "exited",
+      "status": "Exited (0) 2 hours ago",
+      "cpuPercent": null,
+      "memoryBytes": null,
+      "image": "bc-dev:sandbox",
+      "metadata": "BC 26 / us"
+    },
+    {
+      "name": "BC Name.With Spaces-01",
+      "state": "running",
+      "health": "unhealthy",
+      "status": "Up 3 minutes (unhealthy)",
+      "cpuPercent": 8.6,
+      "memoryBytes": 536870912,
+      "image": "bc-spaces:test",
+      "metadata": "BC 25 / w1"
+    }
+  ],
+  "error": {
+    "operation": "docker stats",
+    "command": "docker stats --no-stream --format {{json .}} 234-rules-within-rules BC Name.With Spaces-01",
+    "exitCode": 1,
+    "stderr": "Docker Desktop is not running"
+  }
+}

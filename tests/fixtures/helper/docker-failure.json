@@ -1,0 +1,6 @@
+{
+  "operation": "docker inspect",
+  "command": "docker inspect 234-rules-within-rules BC.Dev_26-A BC Name.With Spaces-01",
+  "exitCode": 1,
+  "stderr": "error during connect: Docker Desktop is not running"
+}

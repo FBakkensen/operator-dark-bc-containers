@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "refreshedAt": "2026-06-01T10:00:00+02:00",
+  "summary": {
+    "total": 1,
+    "running": 1,
+    "cpuPercent": 9.8,
+    "memoryBytes": 3125800960
+  },
+  "containers": [
+    {
+      "name": "234-rules-within-rules",
+      "state": "running",
+      "health": "healthy",
+      "status": "Up 7 hours (healthy)",
+      "cpuPercent": 9.8,
+      "memoryBytes": 3125800960,
+      "image": "bctest:snapshot",
+      "metadata": "BC 26 / dk"
+    }
+  ],
+  "error": null
+}

@@ -1,0 +1,48 @@
+[
+  {
+    "Name": "/234-rules-within-rules",
+    "Config": {
+      "Image": "bctest:snapshot"
+    },
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Health": {
+        "Status": "healthy"
+      }
+    }
+  },
+  {
+    "Name": "/BC.Dev_26-A",
+    "Config": {
+      "Image": "bcdev:26"
+    },
+    "State": {
+      "Status": "exited",
+      "Running": false
+    }
+  },
+  {
+    "Name": "/BC Name.With Spaces-01",
+    "Config": {
+      "Image": "bc-preview:26"
+    },
+    "State": {
+      "Status": "running",
+      "Running": true
+    }
+  },
+  {
+    "Name": "/docker-only",
+    "Config": {
+      "Image": "redis:latest"
+    },
+    "State": {
+      "Status": "running",
+      "Running": true,
+      "Health": {
+        "Status": "healthy"
+      }
+    }
+  }
+]

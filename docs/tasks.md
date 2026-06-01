@@ -33,7 +33,7 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
 
 ### T001 - Test Harness And Fixtures
 
-- Status: `Ready`
+- Status: `Done`
 - Kind: implementation
 - Vertical outcome: The repo has a deterministic local test command and fixture layout that future helper, widget, pack, and install slices can use.
 - PRD coverage: Focused contract tests, buildless widget direction, no frontend bundler, fixture-based verification before live host access.
@@ -49,12 +49,12 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - `npm test` runs deterministically.
   - Test fixtures live under `tests/fixtures`.
   - No frontend bundler, generated assets, or runtime product code is introduced beyond the test scaffold.
+  - Evidence: 2026-06-01 `npm test` passed; scaffold tests verify the buildless package script, fixture folders, and quiet helper wrapper.
 
 ### T002 - Helper Refresh JSON Contract
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
-- Blocked by: T001
 - Vertical outcome: Running the PowerShell refresh helper with mocked host commands returns valid normalized JSON and no non-JSON stdout noise.
 - PRD coverage: Helper refresh output, JSON-only stdout, refresh failure shape, exact failure details, timestamps.
 - Red tests:
@@ -70,12 +70,12 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Focused helper contract tests pass.
   - Refresh output has `ok`, `refreshedAt`, `summary`, `containers`, and `error`.
   - Helper stdout remains valid JSON for success and failure paths.
+  - Evidence: 2026-06-01 `npm test` passed; refresh tests parse raw stdout JSON for empty, success, BCContainerHelper failure, and Docker failure paths.
 
 ### T003 - BC Container Identity Source
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
-- Blocked by: T002
 - Vertical outcome: The helper identifies BC containers through BCContainerHelper and preserves exact container names for all later Docker queries and actions.
 - PRD coverage: BCContainerHelper is source of truth, all local BC containers including stopped containers, exact names, no generic Docker container management.
 - Red tests:
@@ -91,12 +91,12 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Helper tests pass with BCContainerHelper fixtures.
   - The helper never treats Docker alone as the BC container identity source.
   - Container names used for downstream lookups remain exact.
+  - Evidence: 2026-06-01 `npm test` passed; identity tests preserve mixed-case/punctuated names, exclude Docker-only containers, and assert Docker is queried only after BC identities are loaded.
 
 ### T004 - Docker Status And Stats Merge
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
-- Blocked by: T003
 - Vertical outcome: The helper enriches BC container identities with Docker runtime status, health, CPU, RAM, image, and aggregate summary values.
 - PRD coverage: Real CPU/RAM for running containers, stopped containers with no fake usage, health/status fallback, aggregate CPU/RAM, image metadata when cheap.
 - Red tests:
@@ -115,12 +115,12 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Running rows have real resource values from Docker fixtures.
   - Stopped rows omit CPU/RAM usage.
   - Summary values match the returned running containers.
+  - Evidence: 2026-06-01 `npm test` passed; Docker merge tests cover running stats, stopped null usage, health fallback, image metadata, and aggregate CPU/RAM.
 
 ### T005 - Lifecycle Action Contract
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
-- Blocked by: T002
 - Vertical outcome: The helper executes only the four PRD lifecycle actions through BCContainerHelper with safe argument passing and structured action output.
 - PRD coverage: `Start-BcContainer`, `Stop-BcContainer`, `Restart-BcContainer`, `Remove-BcContainer`, hidden action helper path, exact command failures, latest output drawer data.
 - Red tests:
@@ -140,12 +140,13 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - No generic Docker lifecycle command is introduced.
   - Lifecycle actions are launched through the helper path intended for hidden execution; live hidden-window proof remains in T013.
   - Failure output includes the exact command/helper operation and exact stderr/error text.
+  - Evidence: 2026-06-01 `npm test` passed; action tests cover all four BCContainerHelper mappings, unknown action rejection before execution, failure output, shell-looking container names as a single argument, and anti-Docker lifecycle drift.
 
 ## Phase 2: Popup Experience
 
 ### T006 - Popup Static Rendering
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T001
 - Vertical outcome: Opening the widget HTML with fixture data renders the BC container popup surface with header summary, running-first rows, actions, and output drawer.
@@ -165,10 +166,11 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Widget rendering tests pass.
   - Fixture HTML renders the complete PRD popup surface.
   - Exact container names are displayed without prettifying.
+  - Evidence: 2026-06-01 `npm test` passed; localhost smoke loaded the widget fixture, rendered running containers before stopped containers, and preserved exact container names.
 
 ### T007 - Popup Refresh And Stale Data Behavior
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T005 and T006
 - Vertical outcome: The popup loads data through the helper adapter, refreshes while open, keeps last good data on refresh failure, and refreshes immediately after an action completes.
@@ -187,10 +189,11 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Refresh behavior tests pass.
   - Refresh failures show failing operation, exact command/helper operation, exit code when available, and stderr/error text.
   - Last successful data remains visible after a failed refresh.
+  - Evidence: 2026-06-01 `npm test` passed; tests cover helper adapter JSON parsing, structured shell failure command/exit-code rendering, invalid JSON, 5-second scheduling, last-successful-data retention, and immediate refresh after action completion.
 
 ### T008 - Open And Confirmation UX
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T005 and T006
 - Vertical outcome: The popup launches BC web clients with exact container names and uses inline two-step confirmation for restart, stop, and remove.
@@ -213,10 +216,11 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Confirmation and open tests pass.
   - Exact container names are used for URLs and action targets.
   - No modal confirmation behavior is introduced.
+  - Evidence: 2026-06-01 `npm test` passed; localhost smoke changed `Restart` to `Confirm restart` inline with no modal and exact row order intact.
 
 ### T009 - Single Action State And Latest Output
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T005, T007, and T008
 - Vertical outcome: Only one lifecycle action can run at a time, active command state is visible, and the popup exposes the latest action output.
@@ -236,12 +240,13 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Single-action tests pass.
   - The output drawer resets only when Zebar reloads or the popup session restarts.
   - The widget never starts multiple lifecycle actions concurrently from one popup session.
+  - Evidence: 2026-06-01 `npm test` passed; tests cover disabled lifecycle buttons, open staying available, ignored concurrent action, active command display, shell action failure command/exit-code rendering, and latest success/failure output replacement.
 
 ## Phase 3: Packaging And Topbar Integration
 
 ### T010 - Topbar Summary Integration
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T002 and T011
 - Vertical outcome: The existing Operator Dark topbar can show the compact BC container summary and open the popup with narrow local changes.
@@ -261,10 +266,11 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Topbar fixture tests pass.
   - Bar changes are narrow and local to the BC trigger/summary integration.
   - The topbar does not expose generic Docker controls.
+  - Evidence: 2026-06-01 `npm test` passed; topbar summary tests cover `BC 0`, compact CPU/RAM, `BC !`, 10-second refresh scheduling, and popup launch via `zebar.startWidgetPreset('bc-containers', 'popup', { packId: 'operator-dark-bc-containers' })`.
 
 ### T011 - Zebar Pack Contract
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T002 and T006
 - Vertical outcome: The repo contains an installable `operator-dark-bc-containers` Zebar pack with the expected files and narrowly scoped shell helper privilege.
@@ -278,14 +284,16 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Add `pack/operator-dark-bc-containers/zpack.json`.
   - Define the popup widget/preset and include files needed at runtime.
   - Configure shell privilege for `cmd.exe /c ...operator-dark-bc-containers...run-bc-containers-helper.cmd`.
+  - Include `app.js` and `fixture-data.browser.js` because the buildless widget index loads them at runtime.
 - Acceptance:
   - Pack contract tests pass.
   - Pack can be copied to `.glzr\zebar\operator-dark-bc-containers`.
   - The pack remains buildless and source-controlled outside the live `.glzr` install.
+  - Evidence: 2026-06-01 `npm test` passed; pack tests validate the popup preset, runtime include files, helper scripts, narrow helper shell privilege, and rejection of Docker/PowerShell broad shell command shapes plus command chaining.
 
 ### T012 - Idempotent Install Script
 
-- Status: `Pending`
+- Status: `Done`
 - Kind: implementation
 - Blocked by: T010 and T011
 - Vertical outcome: A PowerShell install/update script copies the BC containers pack into a fixture `.glzr` tree and applies or verifies the topbar integration without broad rewrites.
@@ -305,12 +313,13 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Install fixture tests pass twice in a row.
   - The source files copy into `.glzr\zebar\operator-dark-bc-containers` in fixture mode.
   - No unrelated `.glzr` or bar formatting is rewritten.
+  - Evidence: 2026-06-01 `npm test` passed; fixture install copied only the expected pack files, ran idempotently, preserved existing Keydeck and CPU/RAM bar markup, patched bar CSS/zpack narrowly, and `-Check` verified inputs without writes.
 
 ## Phase 4: Runtime Verification And V1 Closeout
 
 ### T013 - Live Helper Smoke
 
-- Status: `Blocked`
+- Status: `Done`
 - Kind: verification
 - Blocked by: T002, T003, T004, and T005
 - Vertical outcome: The helper is proven against the real host tooling or the exact host blocker is documented.
@@ -327,10 +336,17 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - A dated runtime evidence note is recorded in this file or a linked verification artifact.
   - The exact helper command, JSON parse result, and any failure text are recorded.
   - Any skipped lifecycle action names the risk and the missing safe target.
+  - Evidence: 2026-06-01 live helper smoke passed after switching the wrapper to PowerShell Core (`pwsh.exe`) and suppressing BcContainerHelper import noise so stdout starts with `{`.
+  - Evidence: `cmd.exe /d /c scripts\run-bc-containers-helper.cmd -Operation refresh` parsed as JSON with `ok=true`, `total=2`, `running=2`, containers `234-rules-within-rules` and `233-configuration-attribute-copilot`, and real Docker memory values.
+  - Evidence: controlled Docker failure using a mocked `docker` function plus live BCContainerHelper identity returned JSON with `ok=false`, `operation=docker inspect`, `exitCode=42`, and stderr `controlled docker failure`.
+  - Evidence: with user-approved target `233-configuration-attribute-copilot`, `cmd.exe /d /c scripts\run-bc-containers-helper.cmd -Operation action -Action restart -ContainerName 233-configuration-attribute-copilot` parsed as JSON with `ok=true`, `exitCode=0`, stdout containing `Ready for connections!`, and empty stderr.
+  - Evidence: post-action refresh at 2026-06-01T18:00:40+02:00 parsed as JSON with target state `running`, health `healthy`, status `running`, and memory bytes `3300682367`.
+  - Note: no stopped BC containers were present on the host during smoke, so stopped-container no-fake-usage remains covered by fixture tests from T004.
+  - Note: hidden execution was exercised through the same wrapper path used by Zebar; visual no-window behavior remains part of installed Zebar runtime smoke in T014.
 
 ### T014 - Installed Zebar Runtime Smoke
 
-- Status: `Blocked`
+- Status: `Ready`
 - Kind: verification
 - Blocked by: T006, T007, T008, T009, T010, T011, and T012
 - Vertical outcome: The installed widget opens from the real Operator Dark topbar and either passes the runtime checklist or documents exact Zebar/runtime limitations.
@@ -353,6 +369,8 @@ No task may widen the product into a generic Docker UI. BCContainerHelper owns B
   - Runtime checklist evidence is recorded with date, host path, and observed results.
   - Any Zebar API limitation is specific, reproducible, and tied to observed behavior.
   - No unrelated live `.glzr` changes are left unexplained.
+  - Note: 2026-06-01 first live install attempt was rolled back because the popup preset was full-screen and the popup had no close control; the live `.glzr` tree was restored before continuing.
+  - Evidence: 2026-06-01 repo fix changed the popup preset to a bounded `980px` by `640px` window, added a close button available before helper refresh completes, added Escape close cleanup, and kept live reinstall/restart pending user approval.
 
 ### T015 - V1 Closeout Gate
 

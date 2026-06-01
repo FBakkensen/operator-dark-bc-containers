@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "234-rules-within-rules",
+    "CPUPerc": "9.8%",
+    "MemoryBytes": 3125800960
+  },
+  {
+    "Name": "BC Name.With Spaces-01",
+    "CPUPerc": "8.6%",
+    "MemoryBytes": 536870912
+  },
+  {
+    "Name": "docker-only",
+    "CPUPerc": "99%",
+    "MemoryBytes": 10737418240
+  }
+]
