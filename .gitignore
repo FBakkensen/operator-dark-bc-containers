@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+
+# Node/package-manager caches
+.npm/
+.pnpm-store/
+.yarn/cache/
+.yarn/install-state.gz
+
+# Test, coverage, and runtime output
+coverage/
+.nyc_output/
+.output/
+test-results/
+playwright-report/
+
+# Build and packaged artifacts
+dist/
+build/
+out/
+*.tgz
+
+# Local Zebar install target
+.glzr/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment and local machine config
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and IDE state
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
