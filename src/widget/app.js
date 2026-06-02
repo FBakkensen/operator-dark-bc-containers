@@ -465,16 +465,16 @@
 
   function renderContainerRow(document, container, options) {
     const busy = options.busyContainers?.has(container.name) ?? false;
+    const healthTone = healthToneClass(container);
 
     return element(document, 'article', {
-      className: `bc-container-row state-${container.state || 'unknown'}${busy ? ' busy' : ''}`,
+      className: `bc-container-row state-${container.state || 'unknown'}${healthTone ? ` ${healthTone}` : ''}${busy ? ' busy' : ''}`,
       'data-container-name': container.name
     }, [
       element(document, 'div', { className: 'container-main' }, [
         element(document, 'h2', { className: 'container-name' }, [container.name]),
         element(document, 'div', { className: 'container-status' }, [
-          container.health || container.state || 'unknown',
-          container.status ? ` - ${container.status}` : ''
+          formatContainerStatus(container)
         ]),
         renderMetadata(document, container)
       ]),
@@ -564,7 +564,7 @@
       element(document, 'h2', {}, ['Latest output']),
       element(document, 'dl', { className: 'output-grid' }, [
         renderMetric(document, 'Command', latestOutput.command ?? '', 'output-command'),
-        renderMetric(document, 'Exit', `Exit code ${latestOutput.exitCode ?? 'unknown'}`, 'output-exit'),
+        renderMetric(document, 'Exit', `Exit code ${latestOutput.exitCode ?? 'unknown'}`, outputExitClass(latestOutput)),
         renderMetric(document, 'Started', latestOutput.startedAt ?? '', 'output-started'),
         renderMetric(document, 'Finished', latestOutput.finishedAt ?? '', 'output-finished')
       ]),
@@ -664,6 +664,41 @@
 
   function isContainerOpenable(container) {
     return isContainerRunning(container);
+  }
+
+  function healthToneClass(container) {
+    if (!isContainerRunning(container)) {
+      return '';
+    }
+
+    const health = String(container.health ?? '').toLowerCase();
+    if (health.includes('unhealthy')) return 'health-unhealthy';
+    if (health.includes('starting')) return 'health-starting';
+    if (health.includes('healthy')) return 'health-healthy';
+    return '';
+  }
+
+  function formatContainerStatus(container) {
+    const status = String(container.status ?? '').trim();
+    const health = String(container.health || container.state || 'unknown').trim();
+    if (!status) {
+      return health;
+    }
+
+    // The Docker status string already carries the health word in most cases
+    // (e.g. "Up 7 hours (healthy)"), so prefixing it with the bare health word
+    // just repeats it. Only prefix when the status does not already say it.
+    if (health && status.toLowerCase().includes(health.toLowerCase())) {
+      return status;
+    }
+
+    return `${health} - ${status}`;
+  }
+
+  function outputExitClass(output) {
+    const failed = output.ok === false
+      || (typeof output.exitCode === 'number' && output.exitCode !== 0);
+    return failed ? 'output-exit fail' : 'output-exit ok';
   }
 
   function isLifecycleActionAvailable(action, containerName, model) {

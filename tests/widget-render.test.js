@@ -583,12 +583,14 @@ test('widget CSS keeps the popup compact, stable, and action-focused', () => {
   assert.match(css, /\.bc-backdrop\s*{[^}]*place-items:\s*center;/s);
   assert.match(css, /\.bc-containers-panel\s*{[^}]*max-height:\s*min\(/s);
   assert.doesNotMatch(css, /\.bc-containers-panel\s*{[^}]*height:\s*100%;/s);
-  assert.match(css, /\.close-button\s*{[^}]*width:\s*36px;/s);
+  assert.match(css, /\.close-button\s*{[^}]*width:\s*32px;/s);
   assert.match(css, /\.bc-container-row\s*{[^}]*grid-template-columns:/s);
   assert.match(css, /\.actions\s*{[^}]*display:\s*flex;/s);
   assert.match(css, /\.actions\s*{[^}]*flex-wrap:\s*nowrap;/s);
   assert.match(css, /\.action-button\s*{[^}]*min-height:\s*32px;/s);
-  assert.match(css, /\.action-button\s*{[^}]*flex:\s*0 0 116px;/s);
+  // The confirmable actions keep a fixed width basis so arming ("Confirm ...")
+  // never resizes a button or reflows the row.
+  assert.match(css, /\.action-restart,\s*\.action-stop,\s*\.action-remove\s*{[^}]*flex:\s*0 0 132px;/s);
   assert.doesNotMatch(css, /\.action-button\.confirm\s*{[^}]*(?:min-)?width:/s);
   assert.match(css, /\.output-drawer\s*{[^}]*max-height:/s);
   assert.doesNotMatch(css, /border-radius:\s*(1[2-9]|[2-9][0-9])px/);
