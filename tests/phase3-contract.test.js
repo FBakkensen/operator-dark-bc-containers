@@ -50,6 +50,10 @@ test('zebar pack defines the BC containers popup and narrow helper shell privile
   assert.equal(helperRegex.test('/d /c scripts\\run-bc-containers-helper.cmd -Operation refresh'), true);
   assert.equal(helperRegex.test('/d /c C:\\Users\\FlemmingBK\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd -Operation action -Action start -ContainerName bc'), true);
   assert.equal(helperRegex.test('/d /c C:\\Users\\FlemmingBK\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd -Operation action -Action restart -ContainerName BC Name.With Spaces-01'), true);
+  assert.equal(helperRegex.test('/d /c scripts\\run-bc-containers-helper.cmd -Operation open -Url http://233-configuration-attribute-copilot/bc'), true);
+  assert.equal(helperRegex.test('/d /c C:\\Users\\FlemmingBK\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd -Operation open -Url http://bc/bc'), true);
+  assert.equal(helperRegex.test('/d /c scripts\\run-bc-containers-helper.cmd -Operation open -Url file:///C:/windows/system32/calc.exe'), false);
+  assert.equal(helperRegex.test('/d /c scripts\\run-bc-containers-helper.cmd -Operation open -Url http://bc/bc & docker rm bc'), false);
   assert.equal(helperRegex.test('/d /c docker rm bc'), false);
   assert.equal(helperRegex.test('/d /c powershell.exe -NoProfile'), false);
   assert.equal(helperRegex.test('/d /c scripts\\run-bc-containers-helper.cmd -Operation refresh & docker rm bc'), false);

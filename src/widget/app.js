@@ -313,12 +313,20 @@
       return runLifecycleAction(action, container);
     };
 
-    const openContainer = (container) => {
+    const openContainer = async (container) => {
       if (!isContainerOpenable(container)) {
         return false;
       }
 
-      return browserLauncher(`http://${container.name}/bc`);
+      try {
+        await browserLauncher(`http://${container.name}/bc`);
+      } catch (error) {
+        state.warning = protocolErrorFromError(error, 'open');
+        rerender();
+        return false;
+      }
+
+      return closePopup();
     };
 
     const handleKeyDown = (event) => {
@@ -393,6 +401,32 @@
       }
 
       throw new Error('Browser launch API is unavailable.');
+    };
+  }
+
+  function createZebarShellBrowserLauncher(options = {}) {
+    const shellExec = options.shellExec;
+    const command = options.command ?? {
+      program: 'cmd.exe',
+      args: ['/d', '/c', 'scripts\\run-bc-containers-helper.cmd']
+    };
+
+    return async (url) => {
+      const extraArgs = ['-Operation', 'open', '-Url', url];
+      const result = await runHelperJson(shellExec, command, extraArgs);
+
+      if (result && result.ok === false) {
+        const normalized = normalizeShellCommand(command);
+        throw helperError({
+          operation: 'open',
+          command: formatShellCommand(normalized.program, [...normalized.args, ...extraArgs]),
+          exitCode: result.exitCode ?? null,
+          stdout: result.stdout ?? '',
+          stderr: result.error?.stderr ?? result.stderr ?? 'Opening the web client failed.'
+        });
+      }
+
+      return result;
     };
   }
 
@@ -980,6 +1014,7 @@
     countSustained,
     createBrowserLauncher,
     createZebarShellActionRunner,
+    createZebarShellBrowserLauncher,
     createZebarShellDataLoader,
     cpuHotConfig: {
       CONTAINER_HOT_CORES,

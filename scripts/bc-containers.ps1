@@ -2,6 +2,7 @@ param(
     [string] $Operation = 'refresh',
     [string] $Action,
     [string] $ContainerName,
+    [string] $Url,
     [string] $BcContainersFixturePath,
     [string] $DockerInspectFixturePath,
     [string] $DockerStatsFixturePath,
@@ -780,6 +781,101 @@ function Invoke-ActionOperation {
     }
 }
 
+function Invoke-OpenOperation {
+    $StartedAt = New-Timestamp
+
+    if ([string]::IsNullOrWhiteSpace($Url)) {
+        $Stderr = 'Web client URL is required.'
+        $ErrorInfo = New-ProtocolError -OperationName 'ValidateUrl' -Command $null -ExitCode $null -Stderr $Stderr
+        return New-ActionResponse `
+            -Ok $false `
+            -ActionName 'open' `
+            -TargetContainer $ContainerName `
+            -Command $null `
+            -Arguments @() `
+            -StartedAt $StartedAt `
+            -FinishedAt (New-Timestamp) `
+            -ExitCode $null `
+            -Stdout '' `
+            -Stderr $Stderr `
+            -ErrorInfo $ErrorInfo
+    }
+
+    if ($Url -notmatch '^https?://') {
+        $Stderr = "Refusing to open a non-http(s) URL: $Url"
+        $ErrorInfo = New-ProtocolError -OperationName 'ValidateUrl' -Command $null -ExitCode $null -Stderr $Stderr
+        return New-ActionResponse `
+            -Ok $false `
+            -ActionName 'open' `
+            -TargetContainer $ContainerName `
+            -Command $null `
+            -Arguments @() `
+            -StartedAt $StartedAt `
+            -FinishedAt (New-Timestamp) `
+            -ExitCode $null `
+            -Stdout '' `
+            -Stderr $Stderr `
+            -ErrorInfo $ErrorInfo
+    }
+
+    $CommandText = "Start-Process $Url"
+    $Arguments = @($Url)
+
+    if (-not [string]::IsNullOrWhiteSpace($ActionResultFixturePath)) {
+        $Fixture = Read-JsonFile -Path $ActionResultFixturePath
+        $ExitCode = [int] (Get-PropertyValue -InputObject $Fixture -Names @('exitCode', 'ExitCode'))
+        $Stdout = [string] (Get-PropertyValue -InputObject $Fixture -Names @('stdout', 'Stdout'))
+        $Stderr = [string] (Get-PropertyValue -InputObject $Fixture -Names @('stderr', 'Stderr', 'error', 'Error'))
+        $ErrorInfo = $null
+        if ($ExitCode -ne 0) {
+            $ErrorInfo = New-ProtocolError -OperationName 'open' -Command $CommandText -ExitCode $ExitCode -Stderr $Stderr
+        }
+
+        return New-ActionResponse `
+            -Ok ($ExitCode -eq 0) `
+            -ActionName 'open' `
+            -TargetContainer $ContainerName `
+            -Command $CommandText `
+            -Arguments $Arguments `
+            -StartedAt $StartedAt `
+            -FinishedAt (New-Timestamp) `
+            -ExitCode $ExitCode `
+            -Stdout $Stdout `
+            -Stderr $Stderr `
+            -ErrorInfo $ErrorInfo
+    }
+
+    try {
+        Start-Process -FilePath $Url -ErrorAction Stop | Out-Null
+        return New-ActionResponse `
+            -Ok $true `
+            -ActionName 'open' `
+            -TargetContainer $ContainerName `
+            -Command $CommandText `
+            -Arguments $Arguments `
+            -StartedAt $StartedAt `
+            -FinishedAt (New-Timestamp) `
+            -ExitCode 0 `
+            -Stdout '' `
+            -Stderr ''
+    } catch {
+        $Stderr = $_.Exception.Message
+        $ErrorInfo = New-ProtocolError -OperationName 'open' -Command $CommandText -ExitCode 1 -Stderr $Stderr
+        return New-ActionResponse `
+            -Ok $false `
+            -ActionName 'open' `
+            -TargetContainer $ContainerName `
+            -Command $CommandText `
+            -Arguments $Arguments `
+            -StartedAt $StartedAt `
+            -FinishedAt (New-Timestamp) `
+            -ExitCode 1 `
+            -Stdout '' `
+            -Stderr $Stderr `
+            -ErrorInfo $ErrorInfo
+    }
+}
+
 function Write-ProtocolJson {
     param($Payload)
 
@@ -796,6 +892,8 @@ try {
         $Payload = Invoke-RefreshOperation
     } elseif ($NormalizedOperation -eq 'action') {
         $Payload = Invoke-ActionOperation
+    } elseif ($NormalizedOperation -eq 'open') {
+        $Payload = Invoke-OpenOperation
     } else {
         $ErrorInfo = New-ProtocolError -OperationName 'ValidateOperation' -Command $Operation -ExitCode $null -Stderr "Unsupported helper operation: $Operation"
         $Payload = New-RefreshFailure -ErrorInfo $ErrorInfo

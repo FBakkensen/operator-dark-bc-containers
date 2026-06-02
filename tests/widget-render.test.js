@@ -486,6 +486,75 @@ test('open uses exact container names and confirmation is inline, expiring, and 
   controller.destroy();
 });
 
+test('shell browser launcher opens the web client through the privileged helper command', async () => {
+  const { createZebarShellBrowserLauncher } = require('../src/widget/app');
+
+  const calls = [];
+  const launcher = createZebarShellBrowserLauncher({
+    command: { program: 'cmd.exe', args: ['/d', '/c', 'C:\\pack\\scripts\\run-bc-containers-helper.cmd'] },
+    shellExec: async (program, args) => {
+      calls.push({ program, args });
+      return { stdout: JSON.stringify({ ok: true, action: 'open', arguments: [args[args.length - 1]] }), stderr: '', exitCode: 0 };
+    }
+  });
+
+  await launcher('http://234-rules-within-rules/bc');
+  assert.deepEqual(calls, [{
+    program: 'cmd.exe',
+    args: ['/d', '/c', 'C:\\pack\\scripts\\run-bc-containers-helper.cmd', '-Operation', 'open', '-Url', 'http://234-rules-within-rules/bc']
+  }]);
+
+  // A helper that reports ok:false must reject so the popup surfaces the error and stays open.
+  const failing = createZebarShellBrowserLauncher({
+    command: { program: 'cmd.exe', args: ['/d', '/c', 'helper.cmd'] },
+    shellExec: async () => ({ stdout: JSON.stringify({ ok: false, error: { stderr: 'no default browser' } }), stderr: '', exitCode: 0 })
+  });
+  await assert.rejects(() => failing('http://bc/bc'), /no default browser/);
+});
+
+test('browser launcher falls back to window.open outside the Zebar shell', async () => {
+  const { createBrowserLauncher } = require('../src/widget/app');
+
+  const windowCalls = [];
+  const launcher = createBrowserLauncher({
+    window: { open: (url, target, features) => { windowCalls.push([url, target, features]); } }
+  });
+  await launcher('http://234-rules-within-rules/bc');
+  assert.deepEqual(windowCalls, [
+    ['http://234-rules-within-rules/bc', '_blank', 'noopener']
+  ]);
+});
+
+test('open launches the web client then closes the popup, and never closes from a disabled row', async () => {
+  const dom = createDom();
+  const root = dom.window.document.querySelector('#app');
+  const launchedUrls = [];
+  let closeCalls = 0;
+
+  const controller = await initializeBcContainers({
+    document: dom.window.document,
+    window: dom.window,
+    root,
+    dataLoader: async () => loadWidgetFixture('mixed'),
+    browserLauncher: async (url) => { launchedUrls.push(url); },
+    lifecycle: { close: async () => { closeCalls += 1; } },
+    autoRefresh: false
+  });
+
+  button(rowByName(dom, '234-rules-within-rules'), 'open').click();
+  await flushMicrotasks();
+  assert.deepEqual(launchedUrls, ['http://234-rules-within-rules/bc']);
+  assert.equal(closeCalls, 1, 'a successful open closes the popup');
+
+  // Stopped container: Open is disabled, so it neither launches nor closes.
+  button(rowByName(dom, 'BC.Dev_26-A'), 'open').click();
+  await flushMicrotasks();
+  assert.deepEqual(launchedUrls, ['http://234-rules-within-rules/bc']);
+  assert.equal(closeCalls, 1);
+
+  controller.destroy();
+});
+
 test('refresh that invalidates an armed action cancels confirmation', async () => {
   const dom = createDom();
   const root = dom.window.document.querySelector('#app');
@@ -644,6 +713,10 @@ function createDom() {
     url: 'file:///bc-containers/index.html',
     pretendToBeVisual: true
   });
+}
+
+function flushMicrotasks() {
+  return new Promise((resolve) => setImmediate(resolve));
 }
 
 function loadWidgetFixture(name) {

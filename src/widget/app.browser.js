@@ -94,6 +94,9 @@
           stdout: '',
           stderr: 'Zebar shell execution API is unavailable.'
         });
+    const browserLauncher = shellExec
+      ? app.createZebarShellBrowserLauncher({ shellExec, command: helperCommand })
+      : app.createBrowserLauncher({ window });
 
     window.OperatorDarkBcContainersController = await app.initializeBcContainers({
       window,
@@ -102,7 +105,7 @@
       dataLoader,
       actionRunner,
       lifecycle,
-      browserLauncher: app.createBrowserLauncher({ window }),
+      browserLauncher,
       autoRefresh: Boolean(shellExec)
     });
 

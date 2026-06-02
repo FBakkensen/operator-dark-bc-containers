@@ -32,7 +32,7 @@
         "shellCommands": [
           {
             "program": "cmd.exe",
-            "argsRegex": "^/d /c (?:(?:.*operator-dark-bc-containers[\\\\/]scripts[\\\\/]run-bc-containers-helper\\.cmd)|(?:scripts[\\\\/]run-bc-containers-helper\\.cmd)) -Operation (?:refresh|action -Action (?:start|stop|restart|remove) -ContainerName [^&|<>^]+)$"
+            "argsRegex": "^/d /c (?:(?:.*operator-dark-bc-containers[\\\\/]scripts[\\\\/]run-bc-containers-helper\\.cmd)|(?:scripts[\\\\/]run-bc-containers-helper\\.cmd)) -Operation (?:refresh|open -Url https?://[^&|<>^]+|action -Action (?:start|stop|restart|remove) -ContainerName [^&|<>^]+)$"
           }
         ]
       },
