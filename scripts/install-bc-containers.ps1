@@ -89,17 +89,28 @@ function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
         program: 'cmd.exe',
         args: ['/d', '/c', '__HELPER_COMMAND_PATH__'],
       };
+
+      // CPU "hot" watchdog. Thresholds are defined in cores and converted to a percentage against the
+      // real host core count at runtime, so a runaway trips regardless of how many cores the box has.
+      const bcContainersRefreshIntervalMs = 10000;
+      const BC_CONTAINERS_HOT_CORES = 4;
+      const BC_CONTAINERS_AGGREGATE_HOT_FRACTION = 0.6;
+      const BC_CONTAINERS_HOT_SUSTAIN_MS = 60000;
+      const bcContainersCpuHistory = new Map();
+      const bcContainersAggregateHistory = [];
+
       const bcContainersSummaryDefault = {
         label: 'BC ...',
         level: 'normal',
         title: 'BC containers refreshing',
+        hot: false,
       };
 
       function BcContainersSummary({ summary, onOpen }) {
         const state = summary ?? bcContainersSummaryDefault;
         return (
           <button
-            className={`bc-containers-trigger bc-containers-${state.level}`}
+            className={`bc-containers-trigger bc-containers-${state.level}${state.hot ? ' bc-containers-hot' : ''}`}
             title={state.title}
             onClick={onOpen}
           >
@@ -137,12 +148,16 @@ function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
             throw new Error(firstBcContainersLine(stderr) || `BC containers helper exited with code ${exitCode}`);
           }
 
-          return formatBcContainersSummary(JSON.parse(stdout));
+          const model = JSON.parse(stdout);
+          return applyBcContainersHotFlag(formatBcContainersSummary(model), model);
         } catch (error) {
+          bcContainersCpuHistory.clear();
+          bcContainersAggregateHistory.length = 0;
           return {
             label: 'BC !',
             level: 'error',
             title: error?.message ?? String(error),
+            hot: false,
           };
         }
       }
@@ -211,6 +226,84 @@ function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
 
       function firstBcContainersLine(value) {
         return String(value ?? '').split(/\r?\n/).find(line => line.trim())?.trim() ?? '';
+      }
+
+      function bcContainersHotPercentForCores(cores, coreCount) {
+        const denominator = Number(coreCount) > 0 ? Number(coreCount) : 1;
+        return (Number(cores) / denominator) * 100;
+      }
+
+      function bcContainersResolveCoreCount(model) {
+        return Number(model?.summary?.hostCpuCount)
+          || Number(globalThis.navigator?.hardwareConcurrency)
+          || 1;
+      }
+
+      function bcContainersSamplesForDuration(durationMs, intervalMs) {
+        return Math.max(1, Math.ceil(Number(durationMs) / Math.max(1, Number(intervalMs))));
+      }
+
+      function bcContainersCountSustained(history, thresholdPercent) {
+        if (!Array.isArray(history)) return 0;
+        let sustained = 0;
+        for (let index = history.length - 1; index >= 0; index -= 1) {
+          const number = Number(history[index]);
+          if (Number.isFinite(number) && number >= thresholdPercent) sustained += 1;
+          else break;
+        }
+        return sustained;
+      }
+
+      function bcContainersPushBounded(history, value, max) {
+        history.push(Number(value) || 0);
+        while (history.length > Math.max(1, max)) history.shift();
+        return history;
+      }
+
+      // Flag hot when the aggregate OR any single container has stayed elevated for the sustain window.
+      // Needs the raw model (with containers[]), tracked across refreshes in the module-level history.
+      function applyBcContainersHotFlag(summary, model) {
+        if (!summary || summary.level !== 'normal' || !model || model.ok === false || model.error) {
+          bcContainersCpuHistory.clear();
+          bcContainersAggregateHistory.length = 0;
+          return { ...summary, hot: false };
+        }
+
+        const containers = Array.isArray(model.containers) ? model.containers : [];
+        const coreCount = bcContainersResolveCoreCount(model);
+        const containerThreshold = bcContainersHotPercentForCores(BC_CONTAINERS_HOT_CORES, coreCount);
+        const aggregateThreshold = BC_CONTAINERS_AGGREGATE_HOT_FRACTION * 100;
+        const sustainSamples = bcContainersSamplesForDuration(BC_CONTAINERS_HOT_SUSTAIN_MS, bcContainersRefreshIntervalMs);
+
+        const running = new Set();
+        for (const container of containers) {
+          if (container.state !== 'running') continue;
+          running.add(container.name);
+          if (!bcContainersCpuHistory.has(container.name)) bcContainersCpuHistory.set(container.name, []);
+          bcContainersPushBounded(bcContainersCpuHistory.get(container.name), container.cpuPercent, sustainSamples);
+        }
+        for (const name of [...bcContainersCpuHistory.keys()]) {
+          if (!running.has(name)) bcContainersCpuHistory.delete(name);
+        }
+        bcContainersPushBounded(bcContainersAggregateHistory, model.summary?.cpuPercent, sustainSamples);
+
+        const aggregateHot = bcContainersCountSustained(bcContainersAggregateHistory, aggregateThreshold) >= sustainSamples;
+
+        let hottest = null;
+        for (const container of containers) {
+          if (container.state !== 'running') continue;
+          const history = bcContainersCpuHistory.get(container.name) ?? [];
+          if (bcContainersCountSustained(history, containerThreshold) >= sustainSamples) {
+            if (!hottest || Number(container.cpuPercent) > Number(hottest.cpuPercent)) hottest = container;
+          }
+        }
+
+        if (!aggregateHot && !hottest) return { ...summary, hot: false };
+
+        const title = hottest
+          ? `High CPU - ${hottest.name} - ${summary.title}`
+          : `High CPU - ${summary.title}`;
+        return { ...summary, hot: true, title };
       }
 '@
 
@@ -319,6 +412,17 @@ function Ensure-BarCss([string] $CssPath) {
 .bc-containers-trigger.bc-containers-error:hover {
   color: var(--fg-bright);
   border-color: var(--error);
+}
+
+.bc-containers-trigger.bc-containers-hot {
+  color: #f0b35a;
+  background: #f0b35a1a;
+  border-color: #f0b35a66;
+}
+
+.bc-containers-trigger.bc-containers-hot:hover {
+  color: var(--fg-bright);
+  border-color: #f0b35a;
 }
 "@
 

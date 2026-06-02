@@ -115,6 +115,7 @@ function New-RefreshFailure {
             running = 0
             cpuPercent = 0
             memoryBytes = 0
+            hostCpuCount = [Environment]::ProcessorCount
         }
         containers = @()
         error = $ErrorInfo
@@ -138,6 +139,7 @@ function New-RefreshSuccess {
             running = @($Running).Count
             cpuPercent = [Math]::Round($CpuPercent, 2)
             memoryBytes = $MemoryBytes
+            hostCpuCount = [Environment]::ProcessorCount
         }
         containers = @($Containers)
         error = $null

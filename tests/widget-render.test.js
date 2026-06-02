@@ -594,6 +594,49 @@ test('widget CSS keeps the popup compact, stable, and action-focused', () => {
   assert.doesNotMatch(css, /border-radius:\s*(1[2-9]|[2-9][0-9])px/);
 });
 
+test('CPU trend helpers scale thresholds to core count and detect sustained load', () => {
+  const { hotPercentForCores, countSustained, rollingMax, samplesForDuration } = require('../src/widget/app');
+
+  assert.equal(hotPercentForCores(4, 32), 12.5);
+  assert.equal(hotPercentForCores(4, 8), 50);
+  assert.equal(hotPercentForCores(4, 0), 400); // divide-by-zero guard treats coreCount as 1
+
+  assert.equal(countSustained([0, 60, 60, 60], 50), 3);
+  assert.equal(countSustained([60, 0, 60], 50), 1);
+  assert.equal(countSustained([10, 20], 50), 0);
+
+  assert.equal(rollingMax([0, 12, 0], 2), 12); // recent peak keeps the display off 0 between bursts
+  assert.equal(rollingMax([], 2), 0);
+
+  assert.equal(samplesForDuration(60000, 5000), 12);
+});
+
+test('popup marks a container busy when its current CPU crosses the per-core threshold', async () => {
+  const dom = createDom();
+  const root = dom.window.document.querySelector('#app');
+
+  const controller = await initializeBcContainers({
+    document: dom.window.document,
+    window: dom.window,
+    root,
+    dataLoader: async () => loadWidgetFixture('high-cpu'),
+    autoRefresh: false
+  });
+
+  // high-cpu fixture: hostCpuCount 32 -> per-container threshold = 4/32*100 = 12.5%.
+  const hotRow = rowByName(dom, '234-rules-within-rules'); // 25% -> busy
+  const idleRow = rowByName(dom, 'BC Name.With Spaces-01'); // 1% -> not busy
+
+  assert.ok(hotRow.className.includes('busy'), 'hot container row should be marked busy');
+  assert.match(hotRow.querySelector('.cpu-hot-flag')?.textContent ?? '', /busy/);
+  assert.equal(idleRow.className.includes('busy'), false);
+  assert.equal(idleRow.querySelector('.cpu-hot-flag'), null);
+  // aggregate 26% < 60% of the 32-core box -> summary CPU is not flagged hot
+  assert.equal(root.querySelector('.metric-cpu')?.className.includes('hot'), false);
+
+  controller.destroy();
+});
+
 function createDom() {
   return new JSDOM('<!doctype html><main id="app"></main>', {
     url: 'file:///bc-containers/index.html',

@@ -202,6 +202,30 @@ pre {
   border-left: 3px solid var(--ok);
 }
 
+.bc-container-row.busy {
+  border-left-color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+}
+
+.resource-cpu.busy,
+.metric-cpu.hot {
+  color: var(--warn);
+}
+
+.cpu-hot-flag {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--warn);
+  color: var(--bg);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+
 .container-main {
   min-width: 0;
 }

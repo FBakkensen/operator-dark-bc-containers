@@ -37,6 +37,14 @@
 
   const confirmActions = new Set(['restart', 'stop', 'remove']);
 
+  // CPU "hot" detection. Docker reports CPUPerc as a share of all host cores, so thresholds are
+  // defined in cores and converted to a percentage at runtime against the real host core count -
+  // a 4-core runaway then trips on an 8-core box and a 64-core box alike. Tunable here.
+  const CONTAINER_HOT_CORES = 4;
+  const AGGREGATE_HOT_FRACTION = 0.6;
+  const HOT_SUSTAIN_MS = 60000;
+  const DISPLAY_SMOOTH_SAMPLES = 2;
+
   function renderBcContainers(root, model, options = {}) {
     if (!root) {
       throw new Error('A root element is required.');
@@ -49,6 +57,8 @@
     const activeAction = options.activeAction ?? null;
     const armedAction = options.armedAction ?? null;
     const handlers = options.handlers ?? {};
+    const busyContainers = options.busyContainers ?? new Set();
+    const summaryHot = options.summaryHot ?? false;
     const containers = sortContainers(data.containers);
 
     const panel = element(document, 'section', {
@@ -56,12 +66,13 @@
       role: 'dialog',
       'aria-label': 'BC containers'
     }, [
-      renderHeader(document, data, warning, handlers),
+      renderHeader(document, data, warning, handlers, summaryHot),
       warning ? renderWarning(document, warning) : null,
       activeAction ? renderActiveCommand(document, activeAction) : null,
       renderContainerList(document, containers, {
         activeAction,
         armedAction,
+        busyContainers,
         handlers
       }),
       renderOutputDrawer(document, latestOutput)
@@ -100,15 +111,78 @@
       armedAction: null,
       confirmTimer: null,
       refreshTimer: null,
-      currentTask: Promise.resolve()
+      currentTask: Promise.resolve(),
+      cpuHistory: new Map(),
+      aggregateHistory: []
+    };
+
+    const pushBounded = (history, value) => {
+      history.push(Number(value) || 0);
+      while (history.length > DISPLAY_SMOOTH_SAMPLES) {
+        history.shift();
+      }
+      return history;
+    };
+
+    const updateCpuHistory = (model) => {
+      const running = new Set();
+      for (const container of model.containers ?? []) {
+        if (container.state !== 'running') continue;
+        running.add(container.name);
+        if (!state.cpuHistory.has(container.name)) {
+          state.cpuHistory.set(container.name, []);
+        }
+        pushBounded(state.cpuHistory.get(container.name), container.cpuPercent);
+      }
+
+      for (const name of [...state.cpuHistory.keys()]) {
+        if (!running.has(name)) state.cpuHistory.delete(name);
+      }
+
+      pushBounded(state.aggregateHistory, model.summary?.cpuPercent);
+    };
+
+    const buildCpuView = (model) => {
+      const coreCount = resolveCoreCount(model, { coreCount: options.coreCount });
+      const containerThreshold = hotPercentForCores(CONTAINER_HOT_CORES, coreCount);
+      const aggregateThreshold = AGGREGATE_HOT_FRACTION * 100;
+      const busyContainers = new Set();
+
+      const containers = (model.containers ?? []).map((container) => {
+        if (container.state !== 'running') return container;
+
+        const current = Number(container.cpuPercent);
+        if (Number.isFinite(current) && current >= containerThreshold) {
+          busyContainers.add(container.name);
+        }
+
+        const history = state.cpuHistory.get(container.name);
+        const cpuPercent = history?.length ? rollingMax(history, DISPLAY_SMOOTH_SAMPLES) : container.cpuPercent;
+        return { ...container, cpuPercent };
+      });
+
+      const aggregateCurrent = Number(model.summary?.cpuPercent);
+      const summaryHot = Number.isFinite(aggregateCurrent) && aggregateCurrent >= aggregateThreshold;
+      const summaryCpu = state.aggregateHistory.length
+        ? rollingMax(state.aggregateHistory, DISPLAY_SMOOTH_SAMPLES)
+        : model.summary?.cpuPercent;
+
+      return {
+        model: { ...model, containers, summary: { ...model.summary, cpuPercent: summaryCpu } },
+        busyContainers,
+        summaryHot
+      };
     };
 
     const rerender = () => {
-      renderBcContainers(root, state.lastSuccessfulData ?? emptyRefresh, {
+      const view = buildCpuView(state.lastSuccessfulData ?? emptyRefresh);
+      renderBcContainers(root, view.model, {
         warning: state.warning,
         latestOutput: state.latestOutput,
         activeAction: state.activeAction,
         armedAction: state.armedAction,
+        busyContainers: view.busyContainers,
+        summaryHot: view.summaryHot,
         handlers: {
           close: () => closePopup(),
           open: (container) => openContainer(container),
@@ -177,6 +251,7 @@
         } else {
           state.lastSuccessfulData = payload;
           state.warning = null;
+          updateCpuHistory(payload);
         }
       } catch (error) {
         state.warning = protocolErrorFromError(error, 'refresh');
@@ -321,7 +396,7 @@
     };
   }
 
-  function renderHeader(document, data, warning, handlers = {}) {
+  function renderHeader(document, data, warning, handlers = {}, summaryHot = false) {
     const summary = data.summary ?? emptyRefresh.summary;
 
     const closeButton = element(document, 'button', {
@@ -345,7 +420,7 @@
       element(document, 'dl', { className: 'summary-grid' }, [
         renderMetric(document, 'Total', summary.total ?? 0, 'metric-total'),
         renderMetric(document, 'Running', summary.running ?? 0, 'metric-running'),
-        renderMetric(document, 'CPU', formatCpu(summary.cpuPercent), 'metric-cpu'),
+        renderMetric(document, 'CPU', formatCpu(summary.cpuPercent), summaryHot ? 'metric-cpu hot' : 'metric-cpu'),
         renderMetric(document, 'RAM', formatMemory(summary.memoryBytes), 'metric-memory')
       ]),
       closeButton
@@ -389,8 +464,10 @@
   }
 
   function renderContainerRow(document, container, options) {
+    const busy = options.busyContainers?.has(container.name) ?? false;
+
     return element(document, 'article', {
-      className: `bc-container-row state-${container.state || 'unknown'}`,
+      className: `bc-container-row state-${container.state || 'unknown'}${busy ? ' busy' : ''}`,
       'data-container-name': container.name
     }, [
       element(document, 'div', { className: 'container-main' }, [
@@ -401,7 +478,7 @@
         ]),
         renderMetadata(document, container)
       ]),
-      renderResources(document, container),
+      renderResources(document, container, busy),
       renderActions(document, container, options)
     ]);
   }
@@ -415,15 +492,22 @@
     return element(document, 'div', { className: 'container-meta' }, [items.join(' - ')]);
   }
 
-  function renderResources(document, container) {
+  function renderResources(document, container, busy = false) {
     if (!isContainerRunning(container)) {
       return element(document, 'dl', { className: 'resource-grid stopped' }, [
         renderMetric(document, 'State', container.state || 'unknown', 'resource-state')
       ]);
     }
 
+    const cpuValue = busy
+      ? element(document, 'span', { className: 'cpu-value' }, [
+          `${formatCpu(container.cpuPercent)} `,
+          element(document, 'span', { className: 'cpu-hot-flag' }, ['busy'])
+        ])
+      : formatCpu(container.cpuPercent);
+
     return element(document, 'dl', { className: 'resource-grid' }, [
-      renderMetric(document, 'CPU', formatCpu(container.cpuPercent), 'resource-cpu'),
+      renderMetric(document, 'CPU', cpuValue, busy ? 'resource-cpu busy' : 'resource-cpu'),
       renderMetric(document, 'RAM', formatMemory(container.memoryBytes), 'resource-memory')
     ]);
   }
@@ -630,6 +714,51 @@
     return rounded.replace(/\.0$/, '');
   }
 
+  function hotPercentForCores(cores, coreCount) {
+    const denominator = Number(coreCount) > 0 ? Number(coreCount) : 1;
+    return (Number(cores) / denominator) * 100;
+  }
+
+  function resolveCoreCount(model, options = {}) {
+    return Number(model?.summary?.hostCpuCount)
+      || Number(globalThis.navigator?.hardwareConcurrency)
+      || Number(options.coreCount)
+      || 1;
+  }
+
+  function samplesForDuration(durationMs, intervalMs) {
+    return Math.max(1, Math.ceil(Number(durationMs) / Math.max(1, Number(intervalMs))));
+  }
+
+  function rollingMax(history, count) {
+    if (!Array.isArray(history) || history.length === 0) {
+      return 0;
+    }
+
+    return history.slice(-Math.max(1, count)).reduce((max, value) => {
+      const number = Number(value);
+      return Number.isFinite(number) && number > max ? number : max;
+    }, 0);
+  }
+
+  function countSustained(history, thresholdPercent) {
+    if (!Array.isArray(history)) {
+      return 0;
+    }
+
+    let sustained = 0;
+    for (let index = history.length - 1; index >= 0; index -= 1) {
+      const number = Number(history[index]);
+      if (Number.isFinite(number) && number >= thresholdPercent) {
+        sustained += 1;
+      } else {
+        break;
+      }
+    }
+
+    return sustained;
+  }
+
   function formatActionCommand(action, container) {
     return `${actionCommands[action] ?? action} ${container}`;
   }
@@ -813,11 +942,21 @@
   }
 
   return {
+    countSustained,
     createBrowserLauncher,
     createZebarShellActionRunner,
     createZebarShellDataLoader,
+    cpuHotConfig: {
+      CONTAINER_HOT_CORES,
+      AGGREGATE_HOT_FRACTION,
+      HOT_SUSTAIN_MS,
+      DISPLAY_SMOOTH_SAMPLES
+    },
     formatMemory,
+    hotPercentForCores,
     initializeBcContainers,
-    renderBcContainers
+    renderBcContainers,
+    rollingMax,
+    samplesForDuration
   };
 }));

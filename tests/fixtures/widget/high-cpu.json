@@ -2,9 +2,9 @@
   "ok": true,
   "refreshedAt": "2026-06-01T10:00:00+02:00",
   "summary": {
-    "total": 3,
+    "total": 2,
     "running": 2,
-    "cpuPercent": 18.4,
+    "cpuPercent": 26,
     "memoryBytes": 3662671872,
     "hostCpuCount": 32
   },
@@ -14,27 +14,17 @@
       "state": "running",
       "health": "healthy",
       "status": "Up 7 hours (healthy)",
-      "cpuPercent": 9.8,
+      "cpuPercent": 25,
       "memoryBytes": 3125800960,
       "image": "bctest:snapshot",
       "metadata": "BC 26 / dk"
     },
     {
-      "name": "BC.Dev_26-A",
-      "state": "exited",
-      "health": "exited",
-      "status": "Exited (0) 2 hours ago",
-      "cpuPercent": null,
-      "memoryBytes": null,
-      "image": "bc-dev:sandbox",
-      "metadata": "BC 26 / us"
-    },
-    {
       "name": "BC Name.With Spaces-01",
       "state": "running",
-      "health": "unhealthy",
-      "status": "Up 3 minutes (unhealthy)",
-      "cpuPercent": 8.6,
+      "health": "healthy",
+      "status": "Up 3 minutes (healthy)",
+      "cpuPercent": 1,
       "memoryBytes": 536870912,
       "image": "bc-spaces:test",
       "metadata": "BC 25 / w1"

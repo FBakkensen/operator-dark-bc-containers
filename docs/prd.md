@@ -129,6 +129,21 @@ Aggregate CPU is the sum of running BC container CPU percentages.
 
 Aggregate RAM is the sum of running BC container memory usage, formatted as MB or GB.
 
+CPU is a percentage of **all** host CPU cores (Docker's `CPUPerc`), so a mostly single-threaded
+workload looks small on a many-core host (one busy core on a 32-core box ≈ 3%). The summary therefore
+also carries `hostCpuCount` (the host logical processor count) so the UI can express thresholds
+relative to it. This is the only addition to the helper output; the CPU/RAM values themselves are
+unchanged real Docker stats.
+
+### Hot indicator
+
+To surface a container that could slow the machine or is accidentally running hot for a long time, the
+topbar trigger and popup add a derived **"hot" indicator**. It trips when a *single container* **or**
+the *aggregate* stays elevated across several refreshes (sustained, not a momentary spike). The
+threshold is defined in **cores** and converted to a percentage against `hostCpuCount` at runtime, so
+a runaway is caught the same way regardless of host core count — never a hardcoded percentage. The
+indicator is a visual cue only; it does not change the underlying metric.
+
 ### Web Client
 
 `Open` launches the host default browser to:
@@ -240,7 +255,8 @@ Helper refresh output:
     "total": 2,
     "running": 2,
     "cpuPercent": 18.4,
-    "memoryBytes": 5798205849
+    "memoryBytes": 5798205849,
+    "hostCpuCount": 32
   },
   "containers": [
     {

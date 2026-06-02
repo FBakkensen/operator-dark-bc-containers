@@ -22,12 +22,12 @@ test('refresh returns JSON contract for an empty BC container list', () => {
 
   assert.equal(payload.ok, true);
   assert.doesNotThrow(() => new Date(payload.refreshedAt).toISOString());
-  assert.deepEqual(payload.summary, {
-    total: 0,
-    running: 0,
-    cpuPercent: 0,
-    memoryBytes: 0
-  });
+  assert.equal(payload.summary.total, 0);
+  assert.equal(payload.summary.running, 0);
+  assert.equal(payload.summary.cpuPercent, 0);
+  assert.equal(payload.summary.memoryBytes, 0);
+  // hostCpuCount reflects the live host ([Environment]::ProcessorCount); assert shape, not value.
+  assert.ok(Number.isInteger(payload.summary.hostCpuCount) && payload.summary.hostCpuCount > 0);
   assert.deepEqual(payload.containers, []);
   assert.equal(payload.error, null);
 });
@@ -69,6 +69,7 @@ test('summary aggregates only running BC container CPU and memory values', () =>
   assert.equal(payload.summary.running, 2);
   assert.equal(payload.summary.cpuPercent, 18.4);
   assert.equal(payload.summary.memoryBytes, 3662671872);
+  assert.ok(Number.isInteger(payload.summary.hostCpuCount) && payload.summary.hostCpuCount > 0);
 });
 
 test('BCContainerHelper failure keeps the refresh protocol JSON shape', () => {

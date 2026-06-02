@@ -136,6 +136,113 @@ test('topbar summary controller refreshes every 10 seconds and opens the BC popu
   controller.destroy();
 });
 
+test('topbar hot trip is core-relative: a 4-core runaway trips on any host, 1 core never does', () => {
+  const { applyHotFlag } = require('../src/topbar/bc-summary');
+  const intervalMs = 10000; // 60s sustain -> 6 samples
+
+  const feed = (coreCount, cpuPercent, samples) => {
+    const state = { cpuHistory: new Map(), aggregateHistory: [] };
+    const model = {
+      ok: true,
+      summary: { total: 1, running: 1, cpuPercent, hostCpuCount: coreCount },
+      containers: [{ name: 'runner', state: 'running', cpuPercent }]
+    };
+    let summary;
+    for (let i = 0; i < samples; i += 1) {
+      summary = applyHotFlag({ label: 'BC 1', level: 'normal', title: '1 running of 1' }, model, state, intervalMs);
+    }
+    return summary.hot;
+  };
+
+  const coresAsPercent = (cores, coreCount) => (cores / coreCount) * 100;
+
+  // A sustained ~4-core runaway trips regardless of how many cores the host has.
+  assert.equal(feed(8, coresAsPercent(4, 8), 6), true);
+  assert.equal(feed(64, coresAsPercent(4, 64), 6), true);
+  // A single busy core never trips on either host - the threshold is cores, not a fixed %.
+  assert.equal(feed(8, coresAsPercent(1, 8), 6), false);
+  assert.equal(feed(64, coresAsPercent(1, 64), 6), false);
+  // Not hot before the sustain window: a single high sample is ignored.
+  assert.equal(feed(8, coresAsPercent(4, 8), 1), false);
+});
+
+test('topbar flags a single sustained-hot container while the aggregate stays calm, and names it', () => {
+  const { applyHotFlag } = require('../src/topbar/bc-summary');
+  const model = loadWidgetFixture('high-cpu'); // hostCpuCount 32, one container 25% (>12.5%), aggregate 26% (<60%)
+  const state = { cpuHistory: new Map(), aggregateHistory: [] };
+
+  let summary;
+  for (let i = 0; i < 6; i += 1) {
+    summary = applyHotFlag({ label: 'BC 2', level: 'normal', title: '2 running of 2' }, model, state, 10000);
+  }
+
+  assert.equal(summary.hot, true);
+  assert.match(summary.title, /High CPU/);
+  assert.match(summary.title, /234-rules-within-rules/);
+});
+
+test('topbar flags sustained aggregate load even when no single container is hot', () => {
+  const { applyHotFlag } = require('../src/topbar/bc-summary');
+  const containers = Array.from({ length: 6 }, (unused, index) => ({
+    name: `bc-${index}`,
+    state: 'running',
+    cpuPercent: 11 // below the 12.5% per-container threshold on a 32-core host
+  }));
+  const model = {
+    ok: true,
+    summary: { total: 6, running: 6, cpuPercent: 66, hostCpuCount: 32 }, // 66% >= 60% aggregate threshold
+    containers
+  };
+  const state = { cpuHistory: new Map(), aggregateHistory: [] };
+
+  let summary;
+  for (let i = 0; i < 6; i += 1) {
+    summary = applyHotFlag({ label: 'BC 6', level: 'normal', title: '6 running of 6' }, model, state, 10000);
+  }
+
+  assert.equal(summary.hot, true);
+  assert.match(summary.title, /High CPU/);
+  assert.doesNotMatch(summary.title, /bc-\d/); // aggregate trip names no single container
+});
+
+test('topbar clears hot state on a helper error', () => {
+  const { applyHotFlag } = require('../src/topbar/bc-summary');
+  const state = { cpuHistory: new Map(), aggregateHistory: [] };
+  const errorSummary = applyHotFlag({ label: 'BC !', level: 'error', title: 'boom' }, { ok: false, error: {} }, state, 10000);
+
+  assert.equal(errorSummary.hot, false);
+  assert.equal(state.aggregateHistory.length, 0);
+  assert.equal(state.cpuHistory.size, 0);
+});
+
+test('topbar label shows the recent peak so idle does not flicker to 0%', async () => {
+  const { createBcContainersTopbarController } = require('../src/topbar/bc-summary');
+  const dom = new JSDOM('<!doctype html><div id="slot"></div>');
+  const slot = dom.window.document.querySelector('#slot');
+  const cpus = [12, 0]; // a brief burst, then an idle trough
+  let index = 0;
+  const model = (cpu) => ({
+    ok: true,
+    summary: { total: 1, running: 1, cpuPercent: cpu, memoryBytes: 1073741824, hostCpuCount: 32 },
+    containers: [{ name: 'bc', state: 'running', cpuPercent: cpu }]
+  });
+  let scheduledHandler = null;
+
+  const controller = await createBcContainersTopbarController({
+    root: slot,
+    dataLoader: async () => model(cpus[Math.min(index++, cpus.length - 1)]),
+    openPopup: async () => {},
+    setInterval: (handler) => { scheduledHandler = handler; return 1; },
+    clearInterval: () => {}
+  });
+
+  assert.match(slot.textContent, /CPU 12%/);
+  await scheduledHandler(); // raw CPU is now 0, but the recent peak keeps the label at 12%
+  assert.match(slot.textContent, /CPU 12%/);
+
+  controller.destroy();
+});
+
 test('install script copies only expected pack files and patches the topbar idempotently', () => {
   const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-containers-install-'));
 
@@ -169,8 +276,16 @@ test('install script copies only expected pack files and patches the topbar idem
     assert.match(barHtml, /Status label="CPU"/);
     assert.match(barHtml, /className="keydeck-trigger"/);
 
+    // Sustained "hot" watchdog: aggregate + per-container history, core-relative threshold, hot class.
+    assert.equal((barHtml.match(/function applyBcContainersHotFlag\(/g) ?? []).length, 1);
+    assert.match(barHtml, /bcContainersCpuHistory/);
+    assert.match(barHtml, /bcContainersAggregateHistory/);
+    assert.match(barHtml, /bcContainersResolveCoreCount/);
+    assert.match(barHtml, /\$\{state\.hot \? ' bc-containers-hot' : ''\}/);
+
     const barCss = fs.readFileSync(path.join(barRoot, 'styles.css'), 'utf8');
-    assert.equal((barCss.match(/\.bc-containers-trigger/g) ?? []).length, 4);
+    assert.equal((barCss.match(/\.bc-containers-trigger/g) ?? []).length, 6);
+    assert.match(barCss, /\.bc-containers-trigger\.bc-containers-hot\s*{/s);
     assert.match(barCss, /\.right\s*{[^}]*gap:\s*16px;/s);
 
     const barZpack = JSON.parse(fs.readFileSync(path.join(barRoot, 'zpack.json'), 'utf8'));
