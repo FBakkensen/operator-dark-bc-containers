@@ -291,6 +291,11 @@ test('install script copies only expected pack files and patches the topbar idem
     assert.equal((barCss.match(/\.bc-containers-trigger/g) ?? []).length, 6);
     assert.match(barCss, /\.bc-containers-trigger\.bc-containers-hot\s*{/s);
     assert.match(barCss, /\.right\s*{[^}]*gap:\s*16px;/s);
+    // The trigger never wraps or shrinks: a squeezed bar must not clip the label to two lines.
+    assert.match(barCss, /\.bc-containers-trigger\s*{[^}]*white-space:\s*nowrap;/s);
+    assert.match(barCss, /\.bc-containers-trigger\s*{[^}]*flex-shrink:\s*0;/s);
+    assert.equal((barCss.match(/\/\* BEGIN operator-dark-bc-containers \*\//g) ?? []).length, 1);
+    assert.equal((barCss.match(/\/\* END operator-dark-bc-containers \*\//g) ?? []).length, 1);
 
     const barZpack = JSON.parse(fs.readFileSync(path.join(barRoot, 'zpack.json'), 'utf8'));
     assert.equal(barZpack.widgets[0].caching.defaultDuration, 0);
@@ -343,6 +348,16 @@ test('reinstall heals a stale foreign-profile topbar block and bakes no path', (
     assert.doesNotMatch(argsRegex, /FlemmingBK/);
     const otherUserHelper = 'C:\\Users\\someone-else\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd';
     assert.equal(new RegExp(argsRegex).test(`/d /c ${otherUserHelper} -Operation refresh`), true);
+
+    // The legacy sentinel-less trigger CSS is replaced by the current block, other rules untouched.
+    const barCss = fs.readFileSync(path.join(barRoot, 'styles.css'), 'utf8');
+    assert.equal((barCss.match(/\/\* BEGIN operator-dark-bc-containers \*\//g) ?? []).length, 1);
+    assert.equal((barCss.match(/\/\* END operator-dark-bc-containers \*\//g) ?? []).length, 1);
+    assert.equal((barCss.match(/\.bc-containers-trigger/g) ?? []).length, 6);
+    assert.match(barCss, /\.bc-containers-trigger\s*{[^}]*white-space:\s*nowrap;/s);
+    assert.match(barCss, /\.bc-containers-trigger\s*{[^}]*flex-shrink:\s*0;/s);
+    assert.match(barCss, /\.keydeck-trigger\s*{/s);
+    assert.match(barCss, /\.right\s*{[^}]*gap:\s*16px;/s);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }

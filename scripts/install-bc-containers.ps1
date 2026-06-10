@@ -439,12 +439,15 @@ $($indent)}, []);
 
 function Ensure-BarCss([string] $CssPath) {
   $css = Get-Content -LiteralPath $CssPath -Raw
-  if ($css -match "\.bc-containers-trigger") {
-    return
-  }
+
+  # Strip any prior injected block - the sentinel-wrapped current form or the legacy
+  # sentinel-less trigger rules - so every reinstall carries the latest trigger CSS.
+  $stripped = [regex]::Replace($css, '(?s)\s*/\* BEGIN operator-dark-bc-containers \*/.*?/\* END operator-dark-bc-containers \*/', '')
+  $stripped = [regex]::Replace($stripped, '(?s)\s*\.bc-containers-trigger[^{}]*\{[^{}]*\}', '')
 
   $triggerCss = @"
 
+/* BEGIN operator-dark-bc-containers */
 .bc-containers-trigger {
   height: 22px;
   padding: 0 7px;
@@ -452,6 +455,10 @@ function Ensure-BarCss([string] $CssPath) {
   background: var(--accent-soft);
   border: 1px solid #6cc9c740;
   border-radius: 3px;
+  /* The trigger is the only wrappable item in the bar's right flex section, so it absorbs
+     all compression and the fixed height clips the wrapped line. Never shrink or wrap. */
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .bc-containers-trigger:hover {
@@ -480,9 +487,13 @@ function Ensure-BarCss([string] $CssPath) {
   color: var(--fg-bright);
   border-color: #f0b35a;
 }
+/* END operator-dark-bc-containers */
 "@
 
-  Set-TextUtf8NoBom $CssPath "$css$triggerCss"
+  $next = "$($stripped.TrimEnd())`n$triggerCss"
+  if ($next -ne $css) {
+    Set-TextUtf8NoBom $CssPath $next
+  }
 }
 
 function Ensure-BarZpack([string] $ZpackPath) {
