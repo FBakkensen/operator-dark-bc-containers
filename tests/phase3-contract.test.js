@@ -300,12 +300,49 @@ test('install script copies only expected pack files and patches the topbar idem
     assert.match(shellCommands[0].argsRegex, /operator-dark-bc-containers/);
     assert.doesNotMatch(shellCommands[0].argsRegex, /docker/);
     const barHelperRegex = new RegExp(shellCommands[0].argsRegex);
-    const helperLiteral = /args: \['\/d', '\/c', '([^']+)'\]/.exec(barHtml)?.[1];
-    assert.ok(helperLiteral, 'missing injected helper command path');
-    const targetHelper = helperLiteral.replaceAll('\\\\', '\\');
-    assert.equal(barHelperRegex.test(`/d /c ${targetHelper} -Operation refresh`), true);
-    assert.equal(barHelperRegex.test(`/d /c ${targetHelper} -Operation refresh & docker rm bc`), false);
-    assert.equal(barHelperRegex.test(`/d /c ${targetHelper} -Operation refresh | powershell.exe -NoProfile`), false);
+    // The helper path is resolved at runtime, so no absolute profile path is baked into the bar.
+    assert.match(barHtml, /function bcContainersHelperCommand\(/);
+    assert.doesNotMatch(barHtml, /[A-Za-z]:\\\\Users/);
+    assert.equal((barHtml.match(/\/\/ BEGIN operator-dark-bc-containers/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/\/\/ END operator-dark-bc-containers/g) ?? []).length, 1);
+    // The home-agnostic regex admits the helper under any zebar root and rejects shell chaining.
+    const sampleHelper = 'C:\\Users\\anyone\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd';
+    assert.equal(barHelperRegex.test(`/d /c ${sampleHelper} -Operation refresh`), true);
+    assert.equal(barHelperRegex.test(`/d /c ${sampleHelper} -Operation refresh & docker rm bc`), false);
+    assert.equal(barHelperRegex.test(`/d /c ${sampleHelper} -Operation refresh | powershell.exe -NoProfile`), false);
+  } finally {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+  }
+});
+
+test('reinstall heals a stale foreign-profile topbar block and bakes no path', () => {
+  const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'bc-containers-stale-'));
+
+  try {
+    const barRoot = path.join(tempRoot, 'operator-dark-bar');
+    writeLegacyBarFixture(barRoot);
+
+    runInstall(tempRoot);
+
+    const barHtml = fs.readFileSync(path.join(barRoot, 'index.html'), 'utf8');
+    // The legacy baked-path block is gone, replaced by the runtime resolver exactly once.
+    assert.doesNotMatch(barHtml, /FlemmingBK/);
+    assert.doesNotMatch(barHtml, /operatorDarkBcContainersHelperCommand/);
+    assert.doesNotMatch(barHtml, /[A-Za-z]:\\\\Users/);
+    assert.equal((barHtml.match(/function bcContainersHelperCommand\(/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/function BcContainersSummary\(/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/\/\/ BEGIN operator-dark-bc-containers/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/\/\/ END operator-dark-bc-containers/g) ?? []).length, 1);
+    // Wiring inserted around the block survives and is not duplicated.
+    assert.equal((barHtml.match(/<BcContainersSummary/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/const \[bcContainersSummary, setBcContainersSummary\]/g) ?? []).length, 1);
+    assert.equal((barHtml.match(/setInterval\(refreshBcContainersSummary, 10000\)/g) ?? []).length, 1);
+
+    const barZpack = JSON.parse(fs.readFileSync(path.join(barRoot, 'zpack.json'), 'utf8'));
+    const argsRegex = barZpack.widgets[0].privileges.shellCommands[0].argsRegex;
+    assert.doesNotMatch(argsRegex, /FlemmingBK/);
+    const otherUserHelper = 'C:\\Users\\someone-else\\.glzr\\zebar\\operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd';
+    assert.equal(new RegExp(argsRegex).test(`/d /c ${otherUserHelper} -Operation refresh`), true);
   } finally {
     fs.rmSync(tempRoot, { recursive: true, force: true });
   }
@@ -413,6 +450,99 @@ function writeBarFixture(barRoot) {
         },
         privileges: {
           shellCommands: []
+        }
+      }
+    ]
+  }, null, 2));
+}
+
+// A bar already patched by a prior installer, then copied from the FlemmingBK profile:
+// a sentinel-less block with a baked absolute path that no longer exists on this machine.
+function writeLegacyBarFixture(barRoot) {
+  fs.mkdirSync(barRoot, { recursive: true });
+  fs.writeFileSync(path.join(barRoot, 'index.html'), [
+    '<script type="text/babel" data-type="module">',
+    "  import * as zebar from 'https://esm.sh/zebar@3.0';",
+    '',
+    '      const operatorDarkBcContainersHelperCommand = {',
+    "        program: 'cmd.exe',",
+    "        args: ['/d', '/c', 'C:\\\\Users\\\\FlemmingBK\\\\.glzr\\\\zebar\\\\operator-dark-bc-containers\\\\scripts\\\\run-bc-containers-helper.cmd'],",
+    '      };',
+    '',
+    '      function BcContainersSummary({ summary, onOpen }) {',
+    '        return null;',
+    '      }',
+    '',
+    '      async function openBcContainers() {',
+    "        await zebar.startWidgetPreset('bc-containers', 'popup', { packId: 'operator-dark-bc-containers' });",
+    '      }',
+    '',
+    '      async function loadBcContainersSummary() {',
+    '        return await shellExec(operatorDarkBcContainersHelperCommand.program, operatorDarkBcContainersHelperCommand.args);',
+    '      }',
+    '',
+    '      function applyBcContainersHotFlag(summary, model) {',
+    '        return { ...summary, hot: false };',
+    '      }',
+    '  function App() {',
+    '    const [output, setOutput] = useState(providers.outputMap);',
+    '        const [bcContainersSummary, setBcContainersSummary] = useState(bcContainersSummaryDefault);',
+    '    useEffect(() => {',
+    '      providers.onOutput(() => setOutput({ ...providers.outputMap }));',
+    '    }, []);',
+    '',
+    '    useEffect(() => {',
+    '      let disposed = false;',
+    '      async function refreshBcContainersSummary() {',
+    '        const nextSummary = await loadBcContainersSummary();',
+    '        if (!disposed) setBcContainersSummary(nextSummary);',
+    '      }',
+    '      refreshBcContainersSummary();',
+    '      const timer = setInterval(refreshBcContainersSummary, 10000);',
+    '      return () => {',
+    '        disposed = true;',
+    '        clearInterval(timer);',
+    '      };',
+    '    }, []);',
+    '    return (',
+    '      <section className="right">',
+    '              <BcContainersSummary summary={bcContainersSummary} onOpen={openBcContainers} />',
+    '        <button className="keydeck-trigger" title="Open Keydeck" onClick={openKeydeck}>KEYS</button>',
+    '        <Status label="CPU" value={percent(output.cpu?.usage)} />',
+    '        <Status label="RAM" value={percent(output.memory?.usage)} />',
+    '      </section>',
+    '    );',
+    '  }',
+    '  async function openKeydeck() {',
+    "    await zebar.startWidgetPreset('keydeck', 'popup', { packId: 'operator-dark-keydeck' });",
+    '  }',
+    '</script>'
+  ].join('\n'));
+  fs.writeFileSync(path.join(barRoot, 'styles.css'), [
+    '.right {',
+    '  justify-content: flex-end;',
+    '  gap: 16px;',
+    '}',
+    '.keydeck-trigger {',
+    '  height: 22px;',
+    '}',
+    '.bc-containers-trigger {',
+    '  height: 22px;',
+    '}'
+  ].join('\n'));
+  fs.writeFileSync(path.join(barRoot, 'zpack.json'), JSON.stringify({
+    name: 'operator-dark-bar',
+    widgets: [
+      {
+        name: 'topbar',
+        caching: { defaultDuration: 0, rules: [] },
+        privileges: {
+          shellCommands: [
+            {
+              program: 'cmd.exe',
+              argsRegex: '^/d /c C:\\\\Users\\\\FlemmingBK\\\\.glzr\\\\zebar\\\\operator-dark-bc-containers\\\\scripts\\\\run-bc-containers-helper.cmd -Operation refresh$'
+            }
+          ]
         }
       }
     ]

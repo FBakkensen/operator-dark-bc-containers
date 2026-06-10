@@ -25,10 +25,6 @@ function Assert-UnderRoot([string] $Path, [string] $Root) {
   }
 }
 
-function ConvertTo-JavaScriptString([string] $Value) {
-  return $Value.Replace('\', '\\').Replace("'", "\'")
-}
-
 function Set-TextUtf8NoBom([string] $Path, [string] $Value) {
   $encoding = New-Object System.Text.UTF8Encoding($false)
   [System.IO.File]::WriteAllText($Path, $Value, $encoding)
@@ -81,14 +77,58 @@ function Copy-BcContainersPack([string] $SourceRoot, [string] $TargetRoot) {
   }
 }
 
-function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
-  $escapedHelperCommandPath = ConvertTo-JavaScriptString $HelperCommandPath
+function Get-BcContainersTopbarScript() {
   $template = @'
 
-      const operatorDarkBcContainersHelperCommand = {
-        program: 'cmd.exe',
-        args: ['/d', '/c', '__HELPER_COMMAND_PATH__'],
-      };
+      // BEGIN operator-dark-bc-containers
+      // Resolve the helper at runtime from the bar pack location instead of baking in an
+      // absolute path. The bar and the BC containers pack are always installed as siblings
+      // under the zebar root, so the install survives being moved between users or machines.
+      function bcContainersToLocalPath(value) {
+        if (!value) return null;
+        const text = String(value);
+        if (text.startsWith('file://')) {
+          try {
+            const url = new URL(text);
+            return decodeURIComponent(url.pathname).replace(/^\/([a-zA-Z]:)/u, '$1');
+          } catch {
+            return null;
+          }
+        }
+        if (/^[a-zA-Z]:[\\/]/u.test(text) || /^\\\\/u.test(text)) return text;
+        return null;
+      }
+
+      function bcContainersPackRoot(value) {
+        const localPath = bcContainersToLocalPath(value);
+        if (!localPath) return null;
+        const normalized = localPath.replace(/\//g, '\\').replace(/\\+$/u, '');
+        if (/\\zpack\.json$/iu.test(normalized) || /\\[^\\]+\.html$/iu.test(normalized)) {
+          return normalized.replace(/\\[^\\]+$/u, '');
+        }
+        return normalized;
+      }
+
+      function bcContainersCurrentWidget() {
+        try {
+          return typeof zebar?.currentWidget === 'function' ? zebar.currentWidget() : zebar?.currentWidget;
+        } catch {
+          return null;
+        }
+      }
+
+      function bcContainersHelperCommand() {
+        const widget = bcContainersCurrentWidget();
+        const barRoot = bcContainersPackRoot(widget?.configPath)
+          ?? bcContainersPackRoot(widget?.htmlPath)
+          ?? bcContainersPackRoot(window.location?.href);
+        const helperTail = 'operator-dark-bc-containers\\scripts\\run-bc-containers-helper.cmd';
+        if (barRoot) {
+          const zebarRoot = barRoot.replace(/\\[^\\]+$/u, '');
+          return { program: 'cmd.exe', args: ['/d', '/c', `${zebarRoot}\\${helperTail}`] };
+        }
+        return { program: 'cmd.exe', args: ['/d', '/c', `..\\${helperTail}`] };
+      }
 
       // CPU "hot" watchdog. Thresholds are defined in cores and converted to a percentage against the
       // real host core count at runtime, so a runaway trips regardless of how many cores the box has.
@@ -135,8 +175,9 @@ function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
             throw new Error('Zebar shell execution API is unavailable.');
           }
 
-          const result = await shellExec(operatorDarkBcContainersHelperCommand.program, [
-            ...operatorDarkBcContainersHelperCommand.args,
+          const command = bcContainersHelperCommand();
+          const result = await shellExec(command.program, [
+            ...command.args,
             '-Operation',
             'refresh',
           ]);
@@ -305,17 +346,32 @@ function Get-BcContainersTopbarScript([string] $HelperCommandPath) {
           : `High CPU - ${summary.title}`;
         return { ...summary, hot: true, title };
       }
+      // END operator-dark-bc-containers
 '@
 
-  return $template.Replace('__HELPER_COMMAND_PATH__', $escapedHelperCommandPath)
+  return $template
 }
 
-function Ensure-BarHtml([string] $HtmlPath, [string] $HelperCommandPath) {
+function Ensure-BarHtml([string] $HtmlPath) {
   $html = Get-Content -LiteralPath $HtmlPath -Raw
   $changed = $false
 
+  # Strip any prior injected block - the sentinel-wrapped current form or the legacy
+  # sentinel-less one - so a moved or out-of-date install heals on every reinstall. The
+  # block always sits directly before function App(); remove from its start up to that
+  # anchor, then reinsert fresh below.
+  $blockStart = '(?:// BEGIN operator-dark-bc-containers|const operatorDarkBcContainersHelperCommand)'
+  if ($html -match $blockStart) {
+    $removePattern = "(?s)\s*$blockStart.*?(?=\r?\n\s*function App\(\))"
+    $stripped = [regex]::Replace($html, $removePattern, '', 1)
+    if ($stripped -ne $html) {
+      $html = $stripped
+      $changed = $true
+    }
+  }
+
   if ($html -notmatch "function BcContainersSummary\(") {
-    $script = Get-BcContainersTopbarScript $HelperCommandPath
+    $script = Get-BcContainersTopbarScript
     if ($html.Contains("      function App()")) {
       $html = $html.Replace("      function App()", "$script`n      function App()")
     } elseif ($html.Contains("  function App()")) {
@@ -429,9 +485,10 @@ function Ensure-BarCss([string] $CssPath) {
   Set-TextUtf8NoBom $CssPath "$css$triggerCss"
 }
 
-function Ensure-BarZpack([string] $ZpackPath, [string] $HelperCommandPath) {
-  $escapedHelperPath = [regex]::Escape($HelperCommandPath)
-  $argsRegex = "^/d /c $escapedHelperPath -Operation refresh$"
+function Ensure-BarZpack([string] $ZpackPath) {
+  # Match backslash only (not a [\\/] class): Ensure-BarZpack replaces "shellCommands": [ ... ]
+  # non-greedily, so a ']' inside this value would truncate the JSON on the next reinstall.
+  $argsRegex = '^/d /c .*operator-dark-bc-containers\\scripts\\run-bc-containers-helper\.cmd -Operation refresh$'
   $jsonArgsRegex = $argsRegex | ConvertTo-Json -Compress
   $shellCommandJson = @(
     '"shellCommands": [',
@@ -502,9 +559,8 @@ Assert-UnderRoot $barZpack $TargetRoot
 New-Item -ItemType Directory -Force -Path $TargetRoot | Out-Null
 Copy-BcContainersPack $SourceRoot $TargetRoot
 
-$helperCommandPath = Join-Path $TargetRoot "operator-dark-bc-containers\scripts\run-bc-containers-helper.cmd"
-Ensure-BarHtml $barHtml $helperCommandPath
+Ensure-BarHtml $barHtml
 Ensure-BarCss $barCss
-Ensure-BarZpack $barZpack $helperCommandPath
+Ensure-BarZpack $barZpack
 
 Write-Output "Installed operator-dark-bc-containers and checked $BarPackName integration."
